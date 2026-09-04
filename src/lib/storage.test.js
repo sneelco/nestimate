@@ -57,11 +57,12 @@ describe("normalizePlan", () => {
         { name: "401(k)", type: "balance" },
         { name: "Roth IRA", type: "balance" },
         { name: "Brokerage", type: "balance", drawdown: false },
-        { name: "Whatever", type: "balance", taxType: "roth" },
+        { name: "Whatever", type: "balance", taxType: "roth", drawdownFrom: "59.5" },
       ],
     });
     expect(plan.accounts.map((a) => a.taxType)).toEqual(["deferred", "roth", "taxable", "roth"]);
     expect(plan.accounts.map((a) => a.drawdown)).toEqual([true, true, false, true]);
+    expect(plan.accounts.map((a) => a.drawdownFrom)).toEqual(["", "", "", 59.5]);
   });
 
   it("normalizes spending, tax and drawdown sections", () => {

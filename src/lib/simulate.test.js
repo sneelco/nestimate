@@ -93,6 +93,18 @@ describe("spending and drawdown", () => {
     expect(shortfallAge).toBeCloseTo(40.3, 1);
   });
 
+  it("waits for an account's drawdown-from age before using it", () => {
+    const ira = balance({ id: "ira", balance: 100000, drawdownFrom: "@r" });
+    const brk = balance({ id: "brk", balance: 5000, drawdownFrom: "" });
+    const keyMap = buildKeyMap([{ id: "r", age: 41 }]);
+    const { incomeRows } = simulate([ira, brk], keyMap, 40, 42, { spending: [living] });
+    // Before 41 only the brokerage is eligible: it covers 5 months, then 6 months of shortfall.
+    expect(incomeRows[0]).toMatchObject({ age: 40, ira: 0, brk: 5000, __shortfall: 6000 });
+    // From 41 the IRA takes over.
+    expect(incomeRows[1].ira).toBe(12000);
+    expect(incomeRows[1].__shortfall).toBe(0);
+  });
+
   it("does nothing when drawdown is disabled", () => {
     const acct = balance({ balance: 100000 });
     const { incomeRows, shortfallAge } = simulate([acct], {}, 40, 41, { spending: [living], drawdown: { enabled: false } });

@@ -23,7 +23,9 @@ enter leaves your device.
 - **Spending target** with any number of spending items, each with its own start,
   end, and annual increase.
 - **Automatic drawdown**: whatever after-tax income does not cover is withdrawn from
-  your investment accounts in the order you list them, grossed up for tax.
+  your investment accounts in the order you list them, grossed up for tax. Each
+  account can opt out or set an age before which it is off limits, such as 59.5
+  for a 401(k).
 - **Tax awareness**: each account is taxable, tax-deferred, or Roth; income streams
   have a taxable portion; required minimum distributions kick in at 73 or 75.
 - **Summary stats**: peak net worth, net worth at the end of the projection, lifetime
@@ -84,9 +86,13 @@ sample plan, or reset to it at any time from the card at the bottom of the page.
 - Spending items escalate by their own annual increase from today. Each month the
   after-tax income (income streams plus scheduled withdrawals) is compared with
   spending; with drawdown on, the gap is withdrawn from eligible investment
-  accounts in list order, grossed up so the net amount covers the need. Anything
-  still uncovered is recorded as a shortfall and drives the "Spending not covered"
-  warning.
+  accounts in list order, grossed up so the net amount covers the need. An account
+  is eligible once drawdown is on for it and the projection has reached its
+  "available for drawdown from" age. Anything still uncovered is recorded as a
+  shortfall and drives the "Spending not covered" warning.
+- Scheduled withdrawals and automatic drawdown can coexist: schedules run first and
+  count toward spending, and drawdown only fills what remains. Income beyond
+  spending is reported as a surplus but not reinvested.
 - Taxes are flat effective rates. Tax-deferred withdrawals and the taxable share of
   income streams are taxed at the income rate. Withdrawals from taxable accounts are
   taxed at the capital gains rate on the whole withdrawal, which is conservative
@@ -161,6 +167,7 @@ Export produces a JSON document like this:
 | `account.type` | `balance` (investment) or `income` (income stream) |
 | `account.taxType` | `taxable`, `deferred`, or `roth` (investment accounts; guessed from the name if missing) |
 | `account.drawdown` | `true` / `false`: whether automatic drawdown may use this account |
+| `account.drawdownFrom` | age before which drawdown will not touch the account: `""`, a number, or `"@<keyAgeId>"` |
 | `account.taxablePct` | 0–100: share of an income stream that is taxed |
 | `spending[].increase` | annual escalation of that spending item in percent |
 | `tax` | `incomeRate` and `gainsRate` in percent, `rmd` on/off |

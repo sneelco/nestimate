@@ -95,19 +95,19 @@ export function defaultPlan() {
     // spending come from the first eligible account with a balance.
     accounts: [
       {
-        id: uid(), name: "Brokerage", type: "balance", taxType: "taxable", drawdown: true, balance: 150000, growth: 6.5,
+        id: uid(), name: "Brokerage", type: "balance", taxType: "taxable", drawdown: true, drawdownFrom: "", balance: 150000, growth: 6.5,
         schedules: [
           { id: uid(), kind: "contribution", amount: 800, amountType: "fixed", freq: "monthly", startAge: "", endAge: "@" + ret },
         ],
       },
       {
-        id: uid(), name: "401(k)", type: "balance", taxType: "deferred", drawdown: true, balance: 250000, growth: 7,
+        id: uid(), name: "401(k)", type: "balance", taxType: "deferred", drawdown: true, drawdownFrom: 59.5, balance: 250000, growth: 7,
         schedules: [
           { id: uid(), kind: "contribution", amount: 1200, amountType: "fixed", freq: "monthly", startAge: "", endAge: "@" + ret },
         ],
       },
       {
-        id: uid(), name: "Roth IRA", type: "balance", taxType: "roth", drawdown: true, balance: 60000, growth: 7,
+        id: uid(), name: "Roth IRA", type: "balance", taxType: "roth", drawdown: true, drawdownFrom: 59.5, balance: 60000, growth: 7,
         schedules: [
           { id: uid(), kind: "contribution", amount: 500, amountType: "fixed", freq: "monthly", startAge: "", endAge: "@" + ret },
         ],
@@ -133,7 +133,7 @@ export function newSpending() {
 
 export function newAccount(type) {
   return type === "balance"
-    ? { id: uid(), name: "New account", type, taxType: "taxable", drawdown: true, balance: 0, growth: 6, schedules: [] }
+    ? { id: uid(), name: "New account", type, taxType: "taxable", drawdown: true, drawdownFrom: "", balance: 0, growth: 6, schedules: [] }
     : { id: uid(), name: "New income stream", type, cola: 0, taxablePct: 100, schedules: [] };
 }
 
@@ -166,6 +166,7 @@ export function collectMilestones(accounts, keyAges, spending = []) {
       add(s.startAge, `${a.name}: ${verb} start`);
       add(s.endAge, `${a.name}: ${verb} end`);
     });
+    if (a.type === "balance" && a.drawdown !== false) add(a.drawdownFrom, `${a.name}: available for drawdown`);
   });
   spending.forEach((sp) => {
     const name = sp.name || "Spending";

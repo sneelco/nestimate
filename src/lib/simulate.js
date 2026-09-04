@@ -128,12 +128,15 @@ export function simulate({ accounts, keyMap, startAge, endAge, spending = [], ta
     yr.spending += need;
 
     // Cover any gap from accounts in list order, grossing up so the net covers the need.
+    // An account only participates once the projection reaches its drawdown-from age.
     let gap = need - netThisMonth;
     let attemptedDraw = false;
     if (autoDraw && gap > 0) {
       for (const a of accounts) {
         if (gap <= 0) break;
         if (a.type !== "balance" || a.drawdown === false || balances[a.id] <= 0) continue;
+        const from = resolveAge(a.drawdownFrom, keyMap);
+        if (from !== null && age < from) continue;
         attemptedDraw = true;
         const rate = rateFor(a);
         const net = withdraw(a, gap / (1 - rate));

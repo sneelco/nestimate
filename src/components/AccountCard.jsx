@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useT } from "../theme.js";
 import { fmtAxis, num } from "../lib/format.js";
 import { TAX_TYPES, newSchedule, taxTypeLabel } from "../lib/plan.js";
-import { AddBtn, Field, NumInput, Select, useInputStyle } from "./ui.jsx";
+import { AddBtn, AgeInput, Field, NumInput, Select, useInputStyle } from "./ui.jsx";
 import ScheduleRow from "./ScheduleRow.jsx";
 
 function summarize(account) {
@@ -12,6 +12,10 @@ function summarize(account) {
     parts.push(`${num(account.growth)}%/yr`);
     parts.push(taxTypeLabel(account.taxType));
     if (account.drawdown === false) parts.push("no drawdown");
+    else if (account.drawdownFrom !== "" && account.drawdownFrom !== undefined) {
+      const f = account.drawdownFrom;
+      parts.push(typeof f === "string" && f.startsWith("@") ? "drawdown from key age" : `drawdown from ${f}`);
+    }
   } else {
     if (num(account.cola) > 0) parts.push(`${num(account.cola)}% COLA`);
     const pct = num(account.taxablePct, 100);
@@ -93,11 +97,19 @@ export default function AccountCard({ account, color, keyAges, onChange, onDelet
             )}
           </div>
           {account.type === "balance" && (
-            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.ink, cursor: "pointer" }}>
-              <input type="checkbox" checked={account.drawdown !== false}
-                onChange={(e) => set("drawdown", e.target.checked)} />
-              Use for automatic drawdown to cover spending
-            </label>
+            <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: T.ink, cursor: "pointer", paddingBottom: 9 }}>
+                <input type="checkbox" checked={account.drawdown !== false}
+                  onChange={(e) => set("drawdown", e.target.checked)} />
+                Use for automatic drawdown
+              </label>
+              {account.drawdown !== false && (
+                <Field label="Available for drawdown from" w="48%">
+                  <AgeInput value={account.drawdownFrom ?? ""} onChange={(v) => set("drawdownFrom", v)}
+                    blankLabel="Now" keyAges={keyAges} />
+                </Field>
+              )}
+            </div>
           )}
 
           {account.schedules.map((s) => (

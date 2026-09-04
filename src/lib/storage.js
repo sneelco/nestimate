@@ -58,6 +58,7 @@ function normalizeAccount(raw, keyIds) {
       ...base,
       taxType: oneOf(raw.taxType, taxIds, guessTaxType(base.name)),
       drawdown: raw.drawdown !== false,
+      drawdownFrom: ageRef(raw.drawdownFrom, keyIds),
       balance: numOrBlank(raw.balance, 0),
       growth: numOrBlank(raw.growth, 0),
     };
