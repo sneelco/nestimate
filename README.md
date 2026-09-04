@@ -20,8 +20,14 @@ enter leaves your device.
   so moving one milestone shifts everything tied to it.
 - **Net worth and annual income charts** with synced tooltips, stacked by account,
   with key ages and other schedule milestones marked.
-- **Summary stats**: peak net worth, net worth at the end of the projection, and a
-  warning if investment balances run out while you are still withdrawing.
+- **Spending target** with any number of spending items, each with its own start,
+  end, and annual increase.
+- **Automatic drawdown**: whatever after-tax income does not cover is withdrawn from
+  your investment accounts in the order you list them, grossed up for tax.
+- **Tax awareness**: each account is taxable, tax-deferred, or Roth; income streams
+  have a taxable portion; required minimum distributions kick in at 73 or 75.
+- **Summary stats**: peak net worth, net worth at the end of the projection, lifetime
+  taxes, and a warning from the first age your spending is not fully covered.
 - **Automatic saving** to the browser's local storage, plus a light/dark theme
   that follows your system preference and remembers your choice.
 - **Export and import** of the whole plan as a JSON file, and a one-click reset
@@ -51,10 +57,19 @@ sample plan, or reset to it at any time from the card at the bottom of the page.
    weeks, monthly, yearly), and a start and end. Start and end can be "Now" or
    "Never", a key age, or a specific age. Withdrawals can instead be a percent of
    the balance per year, recomputed from the current balance.
-5. **Read the charts.** *Net worth* stacks investment balances over time. *Annual
-   income* stacks withdrawals and income-stream payments by source. Teal dashed
-   lines are key ages; gray dashed lines are other schedule boundaries. Hover
-   either chart to see the breakdown at a given age in both.
+5. **Set your spending.** Add one or more spending items, such as living expenses
+   from retirement or travel until 80, each with an annual increase. Leave
+   "Cover any shortfall from accounts automatically" on to let the tool draw
+   what is needed; turn it off to model withdrawals entirely by hand.
+6. **Set tax rates.** Enter an effective income tax rate and capital gains rate, and
+   choose a tax treatment for each investment account. Income streams have a
+   taxable portion (85% by default for Social Security).
+7. **Read the charts.** The top panel stacks investment balances over time. The
+   bottom panel stacks after-tax income by source, with taxes as a gray band on
+   top and your spending as a dashed red line. Where the line rises above the
+   stack, spending is not covered. Teal dashed lines are key ages; gray dashed
+   lines are other schedule boundaries. Hover either panel to see the breakdown
+   at a given age in both.
 
 ### How the projection works
 
@@ -66,6 +81,21 @@ sample plan, or reset to it at any time from the card at the bottom of the page.
   zero while a withdrawal is still active, the depletion age is shown as a warning.
 - Income streams are paid at their stated amount, increased by the COLA compounded
   annually from today.
+- Spending items escalate by their own annual increase from today. Each month the
+  after-tax income (income streams plus scheduled withdrawals) is compared with
+  spending; with drawdown on, the gap is withdrawn from eligible investment
+  accounts in list order, grossed up so the net amount covers the need. Anything
+  still uncovered is recorded as a shortfall and drives the "Spending not covered"
+  warning.
+- Taxes are flat effective rates. Tax-deferred withdrawals and the taxable share of
+  income streams are taxed at the income rate. Withdrawals from taxable accounts are
+  taxed at the capital gains rate on the whole withdrawal, which is conservative
+  since only the gain is really taxable. Roth withdrawals are tax-free.
+- Required minimum distributions apply to tax-deferred accounts from age 73, or 75 if
+  you were born in 1960 or later, using the IRS Uniform Lifetime Table. Each year the
+  required amount is the balance at the start of that age divided by the table
+  factor; if scheduled and automatic withdrawals fall short of it, the difference is
+  withdrawn anyway and counted as income.
 - A schedule that references a deleted key age is treated as open-ended.
 
 ### Installing the app
@@ -101,20 +131,27 @@ Export produces a JSON document like this:
     "keyAges": [{ "id": "k1", "name": "Retirement", "age": 55 }],
     "accounts": [
       {
-        "id": "a1", "name": "401(k)", "type": "balance", "balance": 250000, "growth": 7,
+        "id": "a1", "name": "401(k)", "type": "balance", "taxType": "deferred", "drawdown": true,
+        "balance": 250000, "growth": 7,
         "schedules": [
           { "id": "s1", "kind": "contribution", "amount": 1200, "amountType": "fixed",
             "freq": "monthly", "startAge": "", "endAge": "@k1" }
         ]
       },
       {
-        "id": "a2", "name": "Social Security", "type": "income", "cola": 2,
+        "id": "a2", "name": "Social Security", "type": "income", "cola": 2, "taxablePct": 85,
         "schedules": [
           { "id": "s2", "kind": "payment", "amount": 2800, "amountType": "fixed",
             "freq": "monthly", "startAge": 67, "endAge": "" }
         ]
       }
-    ]
+    ],
+    "spending": [
+      { "id": "sp1", "name": "Living expenses", "amount": 6000, "freq": "monthly",
+        "increase": 2.5, "startAge": "@k1", "endAge": "" }
+    ],
+    "tax": { "incomeRate": 22, "gainsRate": 15, "rmd": true },
+    "drawdown": { "enabled": true }
   }
 }
 ```
@@ -122,14 +159,21 @@ Export produces a JSON document like this:
 | Field | Values |
 | --- | --- |
 | `account.type` | `balance` (investment) or `income` (income stream) |
+| `account.taxType` | `taxable`, `deferred`, or `roth` (investment accounts; guessed from the name if missing) |
+| `account.drawdown` | `true` / `false`: whether automatic drawdown may use this account |
+| `account.taxablePct` | 0–100: share of an income stream that is taxed |
+| `spending[].increase` | annual escalation of that spending item in percent |
+| `tax` | `incomeRate` and `gainsRate` in percent, `rmd` on/off |
+| `drawdown.enabled` | whether shortfalls are drawn from accounts automatically |
 | `schedule.kind` | `contribution` or `withdrawal` on a balance account; `payment` on an income stream |
 | `schedule.amountType` | `fixed`, or `percent` for a withdrawal that is a percent of balance per year |
 | `schedule.freq` | `weekly`, `biweekly`, `monthly`, `yearly` |
 | `startAge` / `endAge` | `""` (now / never), a number, or `"@<keyAgeId>"` to reference a key age |
 
 Import accepts either this wrapped document or a bare `plan` object. Missing or
-malformed fields fall back to safe defaults; only a document with no `accounts`
-list, invalid JSON, or a newer format version is rejected.
+malformed fields fall back to safe defaults, so plans exported before spending and
+tax support still load; only a document with no `accounts` list, invalid JSON, or a
+newer format version is rejected.
 
 ## Development
 

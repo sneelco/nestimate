@@ -41,9 +41,41 @@ describe("normalizePlan", () => {
     // "payment" is not valid on a balance account; falls back to contribution.
     expect(a.schedules[0]).toMatchObject({ kind: "contribution", amount: 12, freq: "monthly", startAge: "", endAge: 70 });
 
-    expect(b).toMatchObject({ name: "Account", type: "income", cola: 2 });
+    expect(b).toMatchObject({ name: "Account", type: "income", cola: 2, taxablePct: 100 });
     expect(b.schedules[0].kind).toBe("payment");
     expect(b).not.toHaveProperty("balance");
+
+    // New sections get defaults when absent.
+    expect(plan.spending).toEqual([]);
+    expect(plan.tax).toEqual({ incomeRate: 22, gainsRate: 15, rmd: true });
+    expect(plan.drawdown).toEqual({ enabled: true });
+  });
+
+  it("guesses tax types for accounts saved before tax support and keeps explicit ones", () => {
+    const plan = normalizePlan({
+      accounts: [
+        { name: "401(k)", type: "balance" },
+        { name: "Roth IRA", type: "balance" },
+        { name: "Brokerage", type: "balance", drawdown: false },
+        { name: "Whatever", type: "balance", taxType: "roth" },
+      ],
+    });
+    expect(plan.accounts.map((a) => a.taxType)).toEqual(["deferred", "roth", "taxable", "roth"]);
+    expect(plan.accounts.map((a) => a.drawdown)).toEqual([true, true, false, true]);
+  });
+
+  it("normalizes spending, tax and drawdown sections", () => {
+    const plan = normalizePlan({
+      keyAges: [{ id: "r", name: "R", age: 60 }],
+      accounts: [],
+      spending: [{ name: "Living", amount: "5000", freq: "monthly", increase: "3", startAge: "@r" }, "junk"],
+      tax: { incomeRate: "24", gainsRate: null, rmd: false },
+      drawdown: { enabled: false },
+    });
+    expect(plan.spending).toHaveLength(1);
+    expect(plan.spending[0]).toMatchObject({ name: "Living", amount: 5000, increase: 3, startAge: "@r", endAge: "" });
+    expect(plan.tax).toEqual({ incomeRate: 24, gainsRate: 15, rmd: false });
+    expect(plan.drawdown).toEqual({ enabled: false });
   });
 
   it("keeps key-age references that resolve", () => {
