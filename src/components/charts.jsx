@@ -41,31 +41,3 @@ export function Stat({ label, value, sub, warn }) {
     </div>
   );
 }
-
-export function ChartCard({ title, note, children }) {
-  const T = useT();
-  return (
-    <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 10, padding: "14px 10px 8px 6px" }}>
-      <div style={{ padding: "0 8px 8px 10px" }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: T.ink }}>{title}</h2>
-        <p style={{ fontSize: 12, color: T.mute, margin: "2px 0 0" }}>{note}</p>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-/* Label row between stacked charts inside one ChartCard. A rule above it separates
-   the panels; the first section has no rule since the card header sits above it. */
-export function ChartSection({ label, sub, first }) {
-  const T = useT();
-  return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 8, padding: first ? "0 8px 0 10px" : "10px 8px 0 10px",
-      marginTop: first ? 0 : 6, borderTop: first ? "none" : `1px solid ${T.line}`,
-    }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: T.ink }}>{label}</span>
-      {sub && <span style={{ fontSize: 11, color: T.mute }}>{sub}</span>}
-    </div>
-  );
-}
