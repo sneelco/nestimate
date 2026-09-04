@@ -54,3 +54,18 @@ export function ChartCard({ title, note, children }) {
     </div>
   );
 }
+
+/* Label row between stacked charts inside one ChartCard. A rule above it separates
+   the panels; the first section has no rule since the card header sits above it. */
+export function ChartSection({ label, sub, first }) {
+  const T = useT();
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: 8, padding: first ? "0 8px 0 10px" : "10px 8px 0 10px",
+      marginTop: first ? 0 : 6, borderTop: first ? "none" : `1px solid ${T.line}`,
+    }}>
+      <span style={{ fontSize: 12, fontWeight: 700, color: T.ink }}>{label}</span>
+      {sub && <span style={{ fontSize: 11, color: T.mute }}>{sub}</span>}
+    </div>
+  );
+}
