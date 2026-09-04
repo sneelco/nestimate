@@ -14,7 +14,9 @@ export default defineConfig({
     // so it only controls this app even when other project pages share the host.
     VitePWA({
       registerType: "autoUpdate",
-      injectRegister: "auto",
+      // Registration happens in src/main.jsx via virtual:pwa-register so the
+      // page can reload itself when an update activates.
+      injectRegister: null,
       manifest: {
         name: "Nestimate",
         short_name: "Nestimate",

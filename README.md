@@ -110,7 +110,8 @@ Nestimate is a progressive web app (PWA). On desktop Chrome or Edge, use the
 install icon in the address bar; on Android, choose "Add to Home screen"; on iOS
 Safari, use Share → "Add to Home Screen". Once installed it launches in its own
 window and works fully offline, since all data lives on the device. After a new
-version is published, the app picks it up automatically the next time it opens.
+version is published, the app fetches it the next time it opens (and checks
+hourly while open) and reloads itself as soon as the update is ready.
 
 ### Your data
 
