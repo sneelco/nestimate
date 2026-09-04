@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Size up the nest egg — a small retirement projection tool that runs entirely in your browser.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -185,3 +185,7 @@ workflow can also be started by hand from the Actions tab.
 
 Pull requests and non-`main` branches run `.github/workflows/ci.yml`, which runs
 the tests and a build but does not deploy.
+
+## License
+
+Nestimate is released under the [MIT License](LICENSE).
