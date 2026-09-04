@@ -41,16 +41,3 @@ export function Stat({ label, value, sub, warn }) {
     </div>
   );
 }
-
-export function ChartCard({ title, note, children }) {
-  const T = useT();
-  return (
-    <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 10, padding: "14px 10px 8px 6px" }}>
-      <div style={{ padding: "0 8px 8px 10px" }}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0, color: T.ink }}>{title}</h2>
-        <p style={{ fontSize: 12, color: T.mute, margin: "2px 0 0" }}>{note}</p>
-      </div>
-      {children}
-    </div>
-  );
-}

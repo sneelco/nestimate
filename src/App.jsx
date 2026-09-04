@@ -12,7 +12,7 @@ import { AddBtn, Card, EggMark, Field, NumInput } from "./components/ui.jsx";
 import KeyAgesCard from "./components/KeyAgesCard.jsx";
 import AccountCard from "./components/AccountCard.jsx";
 import PlanDataCard from "./components/PlanDataCard.jsx";
-import { ChartCard, ChartTip, Stat } from "./components/charts.jsx";
+import { ChartTip, Stat } from "./components/charts.jsx";
 
 export default function Nestimate() {
   const [mode, setMode] = useState(() => loadTheme() || systemTheme());
@@ -39,6 +39,9 @@ export default function Nestimate() {
     if (currentAge === null || currentAge <= 0 || currentAge >= num(endAge, 95)) return null;
     return simulate(accounts, keyMap, currentAge, num(endAge, 95));
   }, [accounts, keyMap, birthday, endAge]); // eslint-disable-line
+
+  // Both charts use one explicit age domain so their vertical lines and hover positions line up.
+  const xDomain = sim ? [Math.floor(sim.worthRows[0].age), num(endAge, 95)] : [0, 1];
 
   const milestones = useMemo(() => collectMilestones(accounts, keyAges), [accounts, keyAges]);
   const balanceAccounts = accounts.filter((a) => a.type === "balance");
@@ -132,16 +135,15 @@ export default function Nestimate() {
             </div>
           )}
 
-          {/* net worth chart */}
+          {/* projection: net worth stacked on top of annual income, sharing one x-axis */}
           {sim && (
-            <ChartCard title="Net worth" note="Investment balances, stacked. Teal lines are key ages; gray lines are other schedule milestones.">
-              <ResponsiveContainer width="100%" height={260}>
+            <div style={{ background: T.card, border: `1px solid ${T.line}`, borderRadius: 10, padding: "10px 10px 8px 6px" }}>
+              <ResponsiveContainer width="100%" height={200}>
                 <AreaChart data={sim.worthRows} syncId="nestimate" syncMethod="value"
-                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  margin={{ top: 22, right: 8, left: 0, bottom: 6 }}>
                   <CartesianGrid stroke={T.line} strokeDasharray="2 4" vertical={false} />
-                  <XAxis dataKey="age" type="number" domain={["dataMin", "dataMax"]}
-                    tickCount={8} tick={{ fontSize: 11, fill: T.mute }} tickFormatter={(v) => Math.round(v)} />
-                  <YAxis tickFormatter={fmtAxis} tick={{ fontSize: 11, fill: T.mute }} width={46} />
+                  <XAxis dataKey="age" type="number" domain={xDomain} hide />
+                  <YAxis tickFormatter={fmtAxis} tick={{ fontSize: 11, fill: T.mute }} width={46} tickCount={4} />
                   <Tooltip content={<ChartTip accounts={accounts} totalLabel="Total" />} />
                   {refLines(true)}
                   {balanceAccounts.map((a) => (
@@ -150,28 +152,27 @@ export default function Nestimate() {
                   ))}
                 </AreaChart>
               </ResponsiveContainer>
-            </ChartCard>
-          )}
-
-          {/* income chart */}
-          {sim && sim.incomeRows.length > 0 && (
-            <ChartCard title="Annual income" note="Withdrawals plus income-stream payments, by source.">
-              <ResponsiveContainer width="100%" height={230}>
-                <AreaChart data={sim.incomeRows} syncId="nestimate" syncMethod="value"
-                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid stroke={T.line} strokeDasharray="2 4" vertical={false} />
-                  <XAxis dataKey="age" type="number" domain={["dataMin", "dataMax"]}
-                    tickCount={8} tick={{ fontSize: 11, fill: T.mute }} tickFormatter={(v) => Math.round(v)} />
-                  <YAxis tickFormatter={fmtAxis} tick={{ fontSize: 11, fill: T.mute }} width={46} />
-                  <Tooltip content={<ChartTip accounts={accounts} totalLabel="Total / yr" />} />
-                  {refLines(false)}
-                  {accounts.map((a) => (
-                    <Area key={a.id} dataKey={a.id} stackId="1" type="step"
-                      stroke={colorOf[a.id]} fill={colorOf[a.id]} fillOpacity={0.5} strokeWidth={1.5} />
-                  ))}
-                </AreaChart>
-              </ResponsiveContainer>
-            </ChartCard>
+              {sim.incomeRows.length > 0 && (
+                <>
+                  <div style={{ borderTop: `1px solid ${T.line}`, margin: "4px 0 0 10px" }} />
+                  <ResponsiveContainer width="100%" height={114}>
+                    <AreaChart data={sim.incomeRows} syncId="nestimate" syncMethod="value"
+                      margin={{ top: 12, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid stroke={T.line} strokeDasharray="2 4" vertical={false} />
+                      <XAxis dataKey="age" type="number" domain={xDomain}
+                        tickCount={8} tick={{ fontSize: 11, fill: T.mute }} tickFormatter={(v) => Math.round(v)} />
+                      <YAxis tickFormatter={fmtAxis} tick={{ fontSize: 11, fill: T.mute }} width={46} tickCount={3} />
+                      <Tooltip content={<ChartTip accounts={accounts} totalLabel="Total / yr" />} />
+                      {refLines(false)}
+                      {accounts.map((a) => (
+                        <Area key={a.id} dataKey={a.id} stackId="1" type="step"
+                          stroke={colorOf[a.id]} fill={colorOf[a.id]} fillOpacity={0.5} strokeWidth={1.5} />
+                      ))}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </>
+              )}
+            </div>
           )}
 
           {/* legend + milestones */}
