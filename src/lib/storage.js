@@ -1,5 +1,7 @@
 import { uid } from "./format.js";
-import { ACCOUNT_TYPES, SCHEDULE_KINDS, AMOUNT_TYPES, FREQS, defaultPlan } from "./plan.js";
+import {
+  ACCOUNT_TYPES, AMOUNT_TYPES, FREQS, TAX_TYPES, defaultPlan, defaultTax, defaultDrawdown, guessTaxType,
+} from "./plan.js";
 
 export const PLAN_KEY = "nestimate.plan.v1";
 export const THEME_KEY = "nestimate.theme";
@@ -50,9 +52,47 @@ function normalizeAccount(raw, keyIds) {
     ? raw.schedules.map((s) => normalizeSchedule(s, type, keyIds)).filter(Boolean)
     : [];
   const base = { id: idOf(raw.id), name: str(raw.name, "Account"), type, schedules };
-  return type === "balance"
-    ? { ...base, balance: numOrBlank(raw.balance, 0), growth: numOrBlank(raw.growth, 0) }
-    : { ...base, cola: numOrBlank(raw.cola, 0) };
+  if (type === "balance") {
+    const taxIds = TAX_TYPES.map((t) => t.id);
+    return {
+      ...base,
+      taxType: oneOf(raw.taxType, taxIds, guessTaxType(base.name)),
+      drawdown: raw.drawdown !== false,
+      balance: numOrBlank(raw.balance, 0),
+      growth: numOrBlank(raw.growth, 0),
+    };
+  }
+  const taxablePct = numOrBlank(raw.taxablePct, 100);
+  return { ...base, cola: numOrBlank(raw.cola, 0), taxablePct: Math.min(100, Math.max(0, taxablePct)) };
+}
+
+function normalizeSpending(raw, keyIds) {
+  if (!isObj(raw)) return null;
+  return {
+    id: idOf(raw.id),
+    name: str(raw.name),
+    amount: numOrBlank(raw.amount),
+    freq: oneOf(raw.freq, FREQS.map((f) => f.id), "monthly"),
+    increase: numOrBlank(raw.increase, 0),
+    startAge: ageRef(raw.startAge, keyIds),
+    endAge: ageRef(raw.endAge, keyIds),
+  };
+}
+
+function normalizeTax(raw) {
+  const d = defaultTax();
+  if (!isObj(raw)) return d;
+  return {
+    incomeRate: numOrBlank(raw.incomeRate, d.incomeRate),
+    gainsRate: numOrBlank(raw.gainsRate, d.gainsRate),
+    rmd: raw.rmd !== false,
+  };
+}
+
+function normalizeDrawdown(raw) {
+  const d = defaultDrawdown();
+  if (!isObj(raw)) return d;
+  return { enabled: raw.enabled !== false };
 }
 
 /** Returns a clean plan, or throws an Error describing why the input is unusable. */
@@ -73,6 +113,9 @@ export function normalizePlan(raw) {
     endAge: numOrBlank(raw.endAge, 95),
     keyAges,
     accounts: raw.accounts.map((a) => normalizeAccount(a, keyIds)).filter(Boolean),
+    spending: (Array.isArray(raw.spending) ? raw.spending : []).map((sp) => normalizeSpending(sp, keyIds)).filter(Boolean),
+    tax: normalizeTax(raw.tax),
+    drawdown: normalizeDrawdown(raw.drawdown),
   };
 }
 
