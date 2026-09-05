@@ -1,5 +1,8 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
+# main is what's deployed. Every push re-runs the checks (branch protection
+# may not be set), migrates D1 *before* deploying so new code never meets an
+# old schema, deploys, then smoke-checks /api/health.
 on:
   push:
     branches:
@@ -8,44 +11,62 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
-# Only one deployment at a time; let an in-flight one finish rather than cancelling it.
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false # never cancel a run mid-migration
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-      - name: Build
-        run: npm run build
-        env:
-          # Project pages are served from https://<owner>.github.io/<repo>/
-          BASE_PATH: /${{ github.event.repository.name }}/
-      - name: Configure Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
   deploy:
-    needs: build
     runs-on: ubuntu-latest
     environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      name: production
+      url: ${{ steps.deploy.outputs.deployment-url }}
     steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - name: Build
+        run: pnpm build
+        env:
+          APP_VERSION: ${{ github.sha }}
+      - name: Bundle sizes
+        run: du -sh dist/client dist/*/index.js
+      - name: Apply D1 migrations
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          command: d1 migrations apply AUTH_DB --remote
+      - name: Deploy
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          packageManager: pnpm
+          command: deploy
+      - name: Smoke check
+        env:
+          URL: ${{ steps.deploy.outputs.deployment-url }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test -n "$URL" || { echo "No deployment URL from wrangler"; exit 1; }
+          for i in 1 2 3 4 5 6; do
+            body=$(curl -fsS "$URL/api/health" || true)
+            echo "$body"
+            if echo "$body" | grep -q "\"ok\":true" && echo "$body" | grep -q "$SHA"; then
+              echo "Healthy at $URL running $SHA"; exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check did not report ok + $SHA"; exit 1
