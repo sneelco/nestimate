@@ -7,7 +7,7 @@ browser. Enter your accounts, contributions, withdrawals and income streams, and
 see how your net worth and annual income play out year by year. Nothing you
 enter leaves your device.
 
-**Live site:** https://sneelco.github.io/nestimate/
+**Live site:** https://nestimate.sneelco.workers.dev (Cloudflare Workers; see Deployment)
 
 ## Features
 
@@ -32,6 +32,12 @@ enter leaves your device.
   taxes, and a warning from the first age your spending is not fully covered.
 - **Automatic saving** to the browser's local storage, plus a light/dark theme
   that follows your system preference and remembers your choice.
+- **Optional account** for syncing the plan across devices. Sign in with email
+  and password (or GitHub when enabled); the plan on this device is uploaded on
+  first sign-in and kept in step afterwards. Without an account nothing leaves
+  your device.
+- **MCP endpoint** so Claude (or any MCP client) can read the plan, run the
+  projection, and answer what-if questions. API keys are created on the account page.
 - **Export and import** of the whole plan as a JSON file, and a one-click reset
   to the sample plan.
 - **Installable and works offline.** Nestimate is a progressive web app: install
@@ -43,7 +49,7 @@ financial advice.
 
 ## Using Nestimate
 
-Open the [live site](https://sneelco.github.io/nestimate/) and start from the
+Open the [live site](https://nestimate.sneelco.workers.dev) and start from the
 sample plan, or reset to it at any time from the card at the bottom of the page.
 
 1. **Set your birthday and a projection end age.** Your current age is computed
@@ -116,12 +122,30 @@ hourly while open) and reloads itself as soon as the update is ready.
 ### Your data
 
 - The plan is saved to the browser's local storage on every change and restored
-  when you return. It is stored only on the device and browser you used.
-- Clearing site data, using a private window, or switching browsers or devices
-  starts you back at the sample plan.
+  when you return. Without an account it is stored only on the device and browser
+  you used, and clearing site data or switching browsers starts you back at the
+  sample plan.
+- With an account, the plan is also stored in your account and synced to any
+  device you sign in on. The dot in the header shows the sync state. If two
+  devices edit while offline, the newer copy wins and the other is kept as a
+  backup you can restore from the account page.
 - Use **Export** to download a JSON backup and **Import** to load it anywhere
   else. The card at the bottom of the page warns you if the browser is blocking
   local storage.
+- Plans saved by the earlier GitHub Pages version (key `nestimate.plan.v1`) are
+  picked up automatically the first time this version runs in that browser.
+
+### Claude and MCP
+
+Sign in → account menu → **Account** → **API keys** → **New key**, then point an
+MCP client at `https://<host>/mcp` with `Authorization: Bearer <key>` (details in
+[docs/MCP.md](docs/MCP.md)). Besides the generic `get_state` / `replace_state` /
+`patch_state` tools, Nestimate exposes:
+
+| Tool | What it does |
+|---|---|
+| `summarize_plan` | The plan in prose-friendly form: ages, accounts, schedules, spending, taxes, milestones |
+| `run_projection` | Runs the same engine as the charts and returns peak/final net worth, depletion and shortfall ages, lifetime taxes, and per-year rows. Pass a `plan` to answer what-if questions without saving |
 
 ## Plan file format
 
@@ -185,74 +209,60 @@ newer format version is rejected.
 
 ## Development
 
-Requires Node.js 22 or later.
+Nestimate is built on [Outpost](https://github.com/sneelco/outpost): one
+Cloudflare Worker serving the React PWA, a Hono API, Better Auth on D1, per-user
+state in KV synced with localStorage, and the MCP endpoint. Requires Node 22+
+and pnpm.
 
 ```sh
-npm install
-npm run dev        # start the dev server at http://localhost:5173
-npm test           # run unit tests (vitest)
-npm run build      # production build into dist/
-npm run preview    # serve the production build locally
-```
-
-To preview the build exactly as it is served on GitHub Pages, set the base path:
-
-```sh
-BASE_PATH=/nestimate/ npm run build
-BASE_PATH=/nestimate/ npm run preview   # then open http://localhost:4173/nestimate/
+pnpm install
+cp .dev.vars.example .dev.vars     # set BETTER_AUTH_SECRET
+pnpm db:migrate:local              # create the local auth tables (once)
+pnpm dev                           # http://localhost:5173 (client HMR + Worker in workerd)
+pnpm test                          # engine, storage and schema unit tests + Worker tests in Miniflare
+pnpm typecheck && pnpm lint
+pnpm build                         # dist/client (assets) + dist/nestimate (Worker)
+pnpm preview                       # serve the production build locally
 ```
 
 ### Project layout
 
 ```
-index.html                  Vite entry page
-src/main.jsx                React bootstrap
-src/App.jsx                 App shell: state, persistence, charts, layout
-src/theme.js                Light/dark palettes and theme context
-src/styles.css              Global resets
-public/                     Favicon and PWA icons (manifest and service worker are generated at build)
-src/lib/plan.js             Plan model, defaults, key ages, frequencies, milestones
-src/lib/simulate.js         Month-by-month projection engine
-src/lib/storage.js          Plan validation, localStorage, import/export
-src/lib/format.js           Number formatting and helpers
-src/lib/*.test.js           Unit tests for the engine and storage
-src/components/             UI: account and schedule editors, key ages, charts, data card
-.github/workflows/ci.yml    Tests and build on pull requests and branches
-.github/workflows/deploy.yml  Build and publish to GitHub Pages on push to main
+index.html                              Vite entry page
+wrangler.jsonc                          Worker config (KV + D1 ids)
+src/shared/app.ts                       App identity (id, name, colors)
+src/shared/state.ts                     State schema: { plan }, validated via normalizePlan + Zod
+src/shared/nestimate/plan.js            Plan model, defaults, key ages, frequencies, milestones
+src/shared/nestimate/simulate.js        Month-by-month projection engine
+src/shared/nestimate/storage.js         Plan normalization, legacy localStorage, import/export
+src/shared/nestimate/format.js          Number formatting and helpers
+src/shared/nestimate/*.test.js          Unit tests for the engine and storage
+src/client/features/nestimate/          The UI: NestimateFeature.jsx, theme, components/
+src/client/                             Outpost shell: store, sync engine, auth UI, account page
+src/server/                             Outpost Worker: Hono app, auth, KV state API, MCP
+src/server/mcp/tools.app.ts             summarize_plan and run_projection MCP tools
+migrations/                             D1 migrations (Better Auth tables)
+.github/workflows/ci.yml                Checks + preview deploy on pull requests
+.github/workflows/deploy.yml            Migrate + deploy + smoke check on push to main
 ```
 
 The projection engine and storage layer are plain JavaScript with no React
-dependency, so they can be tested and reused on their own. The UI is React with
+dependency, so they can be tested and reused on their own — the Worker imports
+`simulate.js` directly for the `run_projection` MCP tool. The UI is React with
 inline styles and [Recharts](https://recharts.org) for the charts.
 
 ## Deployment
 
-The app is published to GitHub Pages at:
+Every push to `main` runs `.github/workflows/deploy.yml`: install, typecheck,
+lint, test, build, apply D1 migrations, `wrangler deploy`, then check
+`/api/health` reports the deployed commit. Pull requests get a preview URL from
+`.github/workflows/ci.yml` (previews share the production KV and D1).
 
-**https://sneelco.github.io/nestimate/**
-
-Every push to `main` runs `.github/workflows/deploy.yml`, which:
-
-1. installs dependencies and runs the tests,
-2. builds the site with `BASE_PATH=/nestimate/` so asset URLs resolve under the
-   project sub-path,
-3. uploads `dist/` as a Pages artifact and deploys it.
-
-The workflow calls `actions/configure-pages` with `enablement: true`, so Pages
-should turn on automatically the first time it runs. If the deploy job fails with
-a permissions error, open the repository's **Settings → Pages** and set
-**Source** to **GitHub Actions**, then re-run the workflow.
-
-The base path is derived from the repository name, so a fork named differently
-will deploy to `https://<owner>.github.io/<repo>/` without any changes. The
-workflow can also be started by hand from the Actions tab.
-
-The PWA manifest and service worker are generated by `vite-plugin-pwa` during the
-build and are scoped to the same base path, so the app can be installed and
-cached independently of any other site served from the same GitHub Pages host.
-
-Pull requests and non-`main` branches run `.github/workflows/ci.yml`, which runs
-the tests and a build but does not deploy.
+First-time setup (create the KV namespace and D1 database, paste their ids into
+`wrangler.jsonc`, set the `BETTER_AUTH_*` secrets, add the Cloudflare token and
+account id to the repo secrets) is described step by step in the
+[Outpost README](https://github.com/sneelco/outpost#first-time-setup). Roll back
+with `pnpm exec wrangler rollback` or by reverting the commit.
 
 ## License
 
